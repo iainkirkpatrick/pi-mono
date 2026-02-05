@@ -68,6 +68,12 @@ export interface AgentOptions {
 	sessionId?: string;
 
 	/**
+	 * Optional cache key override for providers that support prompt caching.
+	 * When set, providers may use this instead of sessionId for cache routing.
+	 */
+	cacheKey?: string;
+
+	/**
 	 * Resolves an API key dynamically for each LLM call.
 	 * Useful for expiring tokens (e.g., GitHub Copilot OAuth).
 	 */
@@ -110,6 +116,7 @@ export class Agent {
 	private followUpMode: "all" | "one-at-a-time";
 	public streamFn: StreamFn;
 	private _sessionId?: string;
+	private _cacheKey?: string;
 	public getApiKey?: (provider: string) => Promise<string | undefined> | string | undefined;
 	private runningPrompt?: Promise<void>;
 	private resolveRunningPrompt?: () => void;
@@ -124,6 +131,7 @@ export class Agent {
 		this.followUpMode = opts.followUpMode || "one-at-a-time";
 		this.streamFn = opts.streamFn || streamSimple;
 		this._sessionId = opts.sessionId;
+		this._cacheKey = opts.cacheKey;
 		this.getApiKey = opts.getApiKey;
 		this._thinkingBudgets = opts.thinkingBudgets;
 		this._maxRetryDelayMs = opts.maxRetryDelayMs;
@@ -142,6 +150,20 @@ export class Agent {
 	 */
 	set sessionId(value: string | undefined) {
 		this._sessionId = value;
+	}
+
+	/**
+	 * Get the current cache key used for provider prompt caching.
+	 */
+	get cacheKey(): string | undefined {
+		return this._cacheKey;
+	}
+
+	/**
+	 * Set the cache key for provider prompt caching.
+	 */
+	set cacheKey(value: string | undefined) {
+		this._cacheKey = value;
 	}
 
 	/**
@@ -407,6 +429,7 @@ export class Agent {
 			model,
 			reasoning,
 			sessionId: this._sessionId,
+			cacheKey: this._cacheKey,
 			thinkingBudgets: this._thinkingBudgets,
 			maxRetryDelayMs: this._maxRetryDelayMs,
 			convertToLlm: this.convertToLlm,

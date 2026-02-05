@@ -101,6 +101,41 @@ export const streamOpenAIResponses: StreamFunction<"openai-responses", OpenAIRes
 				applyServiceTierPricing,
 			});
 
+			if (typeof process !== "undefined" && process.env.PI_LOG_CACHE_PROBE === "1") {
+				try {
+					const probeParams = {
+						...params,
+						stream: false,
+						max_output_tokens: Math.max(Math.min(params.max_output_tokens ?? 16, 16), 16),
+					} as unknown as Record<string, unknown>;
+					const probeResponse = (await client.responses.create(
+						probeParams as unknown as ResponseCreateParamsStreaming,
+					)) as unknown as {
+						usage?: {
+							input_tokens?: number;
+							output_tokens?: number;
+							total_tokens?: number;
+							input_tokens_details?: { cached_tokens?: number };
+						};
+					};
+					const usage = probeResponse?.usage;
+					const payload = {
+						provider: model.provider,
+						model: model.id,
+						prompt_cache_key: params.prompt_cache_key,
+						prompt_cache_retention: params.prompt_cache_retention,
+						input_tokens: usage?.input_tokens,
+						output_tokens: usage?.output_tokens,
+						cached_tokens: usage?.input_tokens_details?.cached_tokens,
+						total_tokens: usage?.total_tokens,
+					};
+					console.error(`[pi-cache-probe] ${JSON.stringify(payload)}`);
+				} catch (probeError) {
+					const message = probeError instanceof Error ? probeError.message : String(probeError);
+					console.error(`[pi-cache-probe-error] ${message}`);
+				}
+			}
+
 			if (options?.signal?.aborted) {
 				throw new Error("Request was aborted");
 			}
@@ -200,14 +235,29 @@ function buildParams(model: Model<"openai-responses">, context: Context, options
 	const messages = convertResponsesMessages(model, context, OPENAI_TOOL_CALL_PROVIDERS);
 
 	const cacheRetention = resolveCacheRetention(options?.cacheRetention);
+	const cacheKey = options?.cacheKey ?? options?.sessionId;
 	const params: ResponseCreateParamsStreaming = {
 		model: model.id,
 		input: messages,
 		stream: true,
-		prompt_cache_key: cacheRetention === "none" ? undefined : options?.sessionId,
+		prompt_cache_key: cacheRetention === "none" ? undefined : cacheKey,
 		prompt_cache_retention: getPromptCacheRetention(model.baseUrl, cacheRetention),
 		store: false,
 	};
+
+	if (typeof process !== "undefined" && process.env.PI_LOG_CACHE_REQUEST === "1") {
+		try {
+			const payload = {
+				provider: model.provider,
+				model: model.id,
+				prompt_cache_key: params.prompt_cache_key,
+				prompt_cache_retention: params.prompt_cache_retention,
+			};
+			console.error(`[pi-cache-request] ${JSON.stringify(payload)}`);
+		} catch {
+			// ignore logging errors
+		}
+	}
 
 	if (options?.maxTokens) {
 		params.max_output_tokens = options?.maxTokens;

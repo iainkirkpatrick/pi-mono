@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { Agent, type AgentMessage, type ThinkingLevel } from "@mariozechner/pi-agent-core";
 import type { Message, Model } from "@mariozechner/pi-ai";
@@ -125,6 +126,20 @@ export {
 
 function getDefaultAgentDir(): string {
 	return getAgentDir();
+}
+
+function resolveCacheKey(cwd: string, sessionId: string | undefined): string | undefined {
+	const strategy = process.env.PI_CACHE_KEY_STRATEGY || "project";
+	if (strategy === "none") return undefined;
+	if (strategy === "session") return sessionId;
+	if (strategy === "fixed") {
+		return process.env.PI_CACHE_KEY || undefined;
+	}
+	if (strategy === "project") {
+		const hash = createHash("sha256").update(cwd).digest("hex").slice(0, 16);
+		return `project:${hash}`;
+	}
+	return sessionId;
 }
 
 /**
@@ -293,6 +308,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		},
 		convertToLlm: convertToLlmWithBlockImages,
 		sessionId: sessionManager.getSessionId(),
+		cacheKey: resolveCacheKey(cwd, sessionManager.getSessionId()),
 		transformContext: async (messages) => {
 			const runner = extensionRunnerRef.current;
 			if (!runner) return messages;

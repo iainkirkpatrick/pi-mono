@@ -59,6 +59,11 @@ export interface StreamOptions {
 	signal?: AbortSignal;
 	apiKey?: string;
 	/**
+	 * Optional prompt cache key override for providers that support it.
+	 * When set, providers may use this instead of sessionId for cache routing.
+	 */
+	cacheKey?: string;
+	/**
 	 * Prompt cache retention preference. Providers map this to their supported values.
 	 * Default: "short".
 	 */

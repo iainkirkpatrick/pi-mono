@@ -428,6 +428,22 @@ export async function processResponsesStream<TApi extends Api>(
 			}
 		} else if (event.type === "response.completed") {
 			const response = event.response;
+			if (response?.usage && typeof process !== "undefined" && process.env.PI_LOG_CACHE_USAGE === "1") {
+				try {
+					const usage = response.usage;
+					const payload = {
+						provider: "openai-responses",
+						model: response.model,
+						input_tokens: usage.input_tokens,
+						output_tokens: usage.output_tokens,
+						cached_tokens: usage.input_tokens_details?.cached_tokens,
+						total_tokens: usage.total_tokens,
+					};
+					console.error(`[pi-cache-usage] ${JSON.stringify(payload)}`);
+				} catch {
+					// ignore logging errors
+				}
+			}
 			if (response?.usage) {
 				const cachedTokens = response.usage.input_tokens_details?.cached_tokens || 0;
 				output.usage = {

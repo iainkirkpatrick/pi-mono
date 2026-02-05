@@ -257,10 +257,23 @@ function buildRequestBody(
 		input: messages,
 		text: { verbosity: options?.textVerbosity || "medium" },
 		include: ["reasoning.encrypted_content"],
-		prompt_cache_key: options?.sessionId,
+		prompt_cache_key: options?.cacheKey ?? options?.sessionId,
 		tool_choice: "auto",
 		parallel_tool_calls: true,
 	};
+
+	if (typeof process !== "undefined" && process.env.PI_LOG_CACHE_REQUEST === "1") {
+		try {
+			const payload = {
+				provider: model.provider,
+				model: model.id,
+				prompt_cache_key: body.prompt_cache_key,
+			};
+			console.error(`[pi-cache-request] ${JSON.stringify(payload)}`);
+		} catch {
+			// ignore logging errors
+		}
+	}
 
 	if (options?.temperature !== undefined) {
 		body.temperature = options.temperature;
